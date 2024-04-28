@@ -32,7 +32,7 @@ fn main() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     runtime.block_on( async {
-        println!("server started at localhost:5678");
-        warp::serve(routes).run(([127, 0, 0, 1], 5678)).await;
+        println!("server started at 0.0.0.0:5678");
+        warp::serve(routes).run(([0, 0, 0, 0], 5678)).await;
     });
 }
