@@ -110,8 +110,7 @@ pub fn query_word(db: &Connection, word: String) -> Option<WordEntry> {
         Ok(entry) => {
             Some(entry)
         }
-        Err(e) => {
-            println!("query failed, error = {}", e);
+        Err(_) => {
             None
         }
     }

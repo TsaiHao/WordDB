@@ -38,13 +38,27 @@ pub fn query_route(
                 .header("Content-Type", "application/json")
                 .body(serde_json::to_string(&def).unwrap())
                 .unwrap(),
-            None => Response::builder()
+            None => {
+                println!("query word failed");
+                Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header("Content-Type", "application/json")
                 .body(format!("{{\"error\": \"{} not found\"}}", word))
-                .unwrap(),
+                .unwrap()
+            }
         }
     })
+}
+
+fn extract_id(json: &str) -> Option<String> {
+    if let Some(start) = json.find("\"id\":\"") {
+        let start = start + "\"id\":\"".len();
+
+        if let Some(end) = json[start..].find('\"') {
+            return Some(json[start..start + end].to_string());
+        }
+    }
+    None
 }
 
 pub fn insert_route(
@@ -56,13 +70,29 @@ pub fn insert_route(
         .and(warp::body::json())
         .then(move |word: db::WordEntry| {
             let word = word.word;
-            let word = word.to_lowercase();
+            let mut word = word.to_lowercase();
             let dict_key = env::var("DICT_KEY").expect("DICT_KEY not found in environment");
 
             let dict_url = format!("{}{}?key={}", DICT_URL, word, dict_key);
-            println!("query word {}", dict_url);
+            println!("request word {}", dict_url);
             let database_post = database_post.clone();
             async move {
+                let query_result = {
+                    let db = database_post
+                        .lock()
+                        .expect("get database failed when putting");
+                    db::query_word(&db, word.clone())
+                };
+                if query_result.is_some() {
+                    println!("word already exists");
+                    let res = query_result.unwrap();
+                    return Response::builder()
+                        .status(StatusCode::OK)
+                        .header("Content-Type", "application/json")
+                        .body(serde_json::to_string(&res).unwrap())
+                        .unwrap();
+                }
+
                 let res = reqwest::get(&dict_url).await.expect("request failed");
                 let status = res.status();
                 let res = res.text().await.expect("json deserialization failed");
@@ -83,7 +113,15 @@ pub fn insert_route(
                             .unwrap();
                 }
 
-                println!("query word suceed {}", res);
+                println!("query word suceed");
+                let id = extract_id(&res);
+                match id {
+                    Some(id) => {
+                        println!("use id = {}", id);
+                        word = id;
+                    },
+                    None => {}
+                }
 
                 let db = database_post
                     .lock()
