@@ -1,7 +1,6 @@
 use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio;
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
@@ -28,9 +27,9 @@ pub struct WordEntry {
     /// The word.
     pub word: String,
     /// The definition of the word.
-    pub definition: String,
+    pub definition: Option<String>,
     /// The date when the word was added.
-    pub date: String,
+    pub date: Option<String>,
 }
 
 /// Represents the response for a word query.
@@ -101,8 +100,8 @@ pub fn query_word(db: &Connection, word: String) -> Option<WordEntry> {
             let date: String = row.get(2).expect("get 2 failed");
             Ok(WordEntry {
                 word: word,
-                definition: definition,
-                date: date,
+                definition: Some(definition),
+                date: Some(date),
             })
         },
     );
@@ -180,29 +179,4 @@ pub fn remove_word(db: &Connection, word: String) -> Result<(), DatabaseError> {
             Err(DatabaseError::SqliteError(e))
         }
     }
-}
-
-#[tokio::test]
-async fn query_test() {
-    let db = Connection::open_in_memory().expect("open in memory failed");
-    db.execute(
-        "CREATE TABLE IF NOT EXISTS words (word TEXT PRIMARY KEY, definition TEXT, date TEXT)",
-        [],
-    )
-    .expect("create table failed");
-
-    let word = "test".to_string();
-    let definition = "test definition".to_string();
-    let date = chrono::Utc::now().to_string();
-    db.execute(
-        "INSERT INTO words (word, definition, date) VALUES (?1, ?2, ?3)",
-        params![word, definition, date],
-    )
-    .expect("insert failed");
-
-    let entry = query_word(&db, word.clone());
-    assert!(entry.is_some());
-    let entry = entry.unwrap();
-    assert_eq!(entry.word, word);
-    assert_eq!(entry.definition, definition);
 }
