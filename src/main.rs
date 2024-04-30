@@ -6,7 +6,8 @@ use tokio;
 
 pub mod routes;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let database = Connection::open("words.db").expect("Failed to open database");
     database
         .execute(
@@ -30,9 +31,16 @@ fn main() {
         .or(insert_route)
         .or(delete_route);
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    runtime.block_on( async {
-        println!("server started at 0.0.0.0:5678");
-        warp::serve(routes).run(([0, 0, 0, 0], 5678)).await;
-    });
+    let server = warp::serve(routes).run(([0, 0, 0, 0], 5678));
+    println!("Server running on port 5678");
+
+    let sig_int = tokio::signal::ctrl_c();
+    tokio::select! {
+        _ = server => {
+            println!("Server stopped");
+        },
+        _ = sig_int => {
+            println!("Shutting down server");
+        }
+    }
 }
